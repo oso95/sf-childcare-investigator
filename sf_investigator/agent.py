@@ -28,13 +28,22 @@ def _run_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
         return {"error": f"{type(e).__name__}: {e}"}
 
 
+def _default_max_turns() -> int:
+    try:
+        return int(os.environ.get("LLM_MAX_TURNS", "12"))
+    except ValueError:
+        return 12
+
+
 def run_investigation(
     user_prompt: str,
     *,
     model: str | None = None,
-    max_turns: int = 12,
+    max_turns: int | None = None,
     on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
+    if max_turns is None:
+        max_turns = _default_max_turns()
     """
     Run a tool-calling investigation. Returns {report, turns, tool_calls, messages}.
 

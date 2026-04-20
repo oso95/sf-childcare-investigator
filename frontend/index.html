@@ -590,6 +590,16 @@
 
   let startAt = 0, toolCount = 0, evCount = 0, emptied = false, wallTimer = null;
 
+  // Pull defaults from the server (so LLM_MAX_TURNS from .env.local shows up here).
+  fetch("/api/config").then((r) => r.ok ? r.json() : null).then((cfg) => {
+    if (!cfg) return;
+    if (cfg.default_max_turns) {
+      $("maxTurns").value = cfg.default_max_turns;
+      $("maxTurns").setAttribute("data-env-default", cfg.default_max_turns);
+    }
+    if (cfg.default_model) $("model").value = cfg.default_model;
+  }).catch(() => {});
+
   const setPill = (cls, label) => {
     pill.className = "pill " + cls;
     pillLabel.textContent = label;

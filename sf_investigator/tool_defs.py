@@ -282,13 +282,13 @@ TOOL_DEFS = [
         "function": {
             "name": "risk_scorecard",
             "description": (
-                "Compound 6-signal risk scorecard for a single facility. Summarises the "
-                "investigation into HIGH / MEDIUM / LOW / EXCLUDED. Call after gathering "
-                "all the underlying data. Signals: S1 type_is_center, S2 indoor_fails, "
-                "S3 outdoor_fails, S4 no_change_of_use_permit, S5 active_code_problem, "
-                "S6 residential_parcel. HIGH requires 5+ signals fired AND not EXCLUDED. "
-                "Returns a tweet_draft + a CCLD complaint URL. Human review is required "
-                "before publication."
+                "Weighted risk scorecard. Primary signal (must fire for HIGH): indoor "
+                "sqft fails — `indoor_impossible` (+3) or `indoor_implausible` (+2). "
+                "Supporting: outdoor_fails (+1), no_change_of_use (+1), active_code_problem "
+                "(+2), residential_parcel (+1). HIGH = primary fires AND total ≥ 5. "
+                "FCCH → EXCLUDED. Tax-exempt or condo parcel → INSUFFICIENT_DATA (sqft "
+                "likely under-reported). Returns points, signals (with weights), tweet "
+                "draft, and CCLD complaint URL. Publication requires HIGH + human review."
             ),
             "parameters": {
                 "type": "object",
@@ -308,6 +308,8 @@ TOOL_DEFS = [
                     "parcel_is_condo": {"type": "boolean", "default": False},
                     "parcel_is_exempt": {"type": "boolean", "default": False,
                                          "description": "True when parcel building_sqft=0 (common for tax-exempt YMCA/SFUSD/religious)"},
+                    "indoor_deficit_sqft": {"type": "number",
+                                            "description": "From physical_impossibility_check.deficit_sqft — how many sqft short the building is"},
                 },
                 "required": ["facility_name", "address", "capacity",
                              "indoor_verdict", "outdoor_verdict",

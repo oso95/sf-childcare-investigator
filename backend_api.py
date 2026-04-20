@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import queue
 import threading
 from typing import Any
@@ -11,9 +12,11 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-load_dotenv()
+# .env.local (gitignored, for secrets) wins over .env if both exist.
+load_dotenv(".env.local", override=False)
+load_dotenv(".env", override=False)
 
-from sf_investigator.agent import run_investigation  # noqa: E402
+from sf_investigator.agent import _default_max_turns, run_investigation  # noqa: E402
 
 app = FastAPI(title="sf-childcare-investigator")
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
@@ -29,9 +32,17 @@ def health() -> dict[str, Any]:
     return {"ok": True, "service": "sf-childcare-investigator"}
 
 
+@app.get("/api/config")
+def config() -> dict[str, Any]:
+    return {
+        "default_max_turns": _default_max_turns(),
+        "default_model": os.environ.get("MODEL", "anthropic/claude-sonnet-4.5"),
+    }
+
+
 class InvestigateRequest(BaseModel):
     prompt: str
-    max_turns: int = 12
+    max_turns: int | None = None
     model: str | None = None
 
 

@@ -9,6 +9,10 @@ import sys
 
 from dotenv import load_dotenv
 
+# .env.local (gitignored, for secrets) wins over .env if both exist.
+load_dotenv(".env.local", override=False)
+load_dotenv(".env", override=False)
+
 from sf_investigator.agent import run_investigation
 
 
@@ -50,7 +54,6 @@ def _print_event(event: dict) -> None:
 
 
 def main() -> int:
-    load_dotenv()
     p = argparse.ArgumentParser(description="SF childcare investigator")
     p.add_argument("query", nargs="?", help="Free-form investigation prompt")
     p.add_argument("--name", help="Facility name fragment")

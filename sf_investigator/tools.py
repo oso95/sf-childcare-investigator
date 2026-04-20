@@ -297,12 +297,14 @@ def physical_impossibility_check(capacity: int, building_sqft: float,
         verdict = "implausible"
     else:
         verdict = "possible"
+    deficit_sqft = max(required_sqft - building_sqft, 0)
     return {
         "capacity": capacity,
         "sqft_per_child": sqft_per_child,
         "required_sqft": required_sqft,
         "building_sqft": building_sqft,
         "practical_cap_sqft": practical_cap_sqft,
+        "deficit_sqft": deficit_sqft,
         "ratio_required_to_building": round(required_sqft / building_sqft, 3),
         "verdict": verdict,
         "rule": (
@@ -397,88 +399,109 @@ def risk_scorecard(
     parcel_use_definition: str | None = None,
     parcel_is_condo: bool = False,
     parcel_is_exempt: bool = False,
+    indoor_deficit_sqft: float | None = None,
 ) -> dict[str, Any]:
     """
-    Compound risk scorecard. Six signals; reports count of signals fired and
-    HIGH/MEDIUM/LOW/EXCLUDED risk.
+    Weighted risk scorecard. Surelock's core signal is "building literally smaller
+    than Title 22 requires"; that's the primary signal and must weight more than
+    the supporting ones.
 
-    Signals (true = risk-relevant):
-      S1. type_is_center       — TYPE in {830,840,850,860}. If false → EXCLUDED (FCCH).
-      S2. indoor_fails         — indoor_verdict is 'impossible' or 'implausible'.
-      S3. outdoor_fails        — outdoor_verdict is 'outdoor_insufficient'.
-      S4. no_change_of_use     — no DBI permit converts to school/day care use.
-      S5. active_code_problem  — open housing NOV or active 311 illegal-use at address.
-      S6. residential_parcel   — parcel use_definition implies residential/SFR.
+    Primary (must fire for HIGH):
+      S2a. indoor_impossible   — raw building_sqft < required_sqft          [+3]
+      S2b. indoor_implausible  — 0.70 * building_sqft < required_sqft       [+2]
 
-    HIGH if >=5 of 6 fire AND not EXCLUDED AND not parcel_is_exempt AND not parcel_is_condo.
-    MEDIUM if 3-4. LOW if <3.
+    Supporting:
+      S3.  outdoor_fails       — lot − building < capacity × 75             [+1]
+      S4.  no_change_of_use    — no DBI permit converts to child care       [+1]
+      S5.  active_code_problem — open housing NOV / 311 illegal-use         [+2]
+      S6.  residential_parcel  — parcel use_definition residential/SFR/apt  [+1]
 
-    Never auto-post. This scorecard is a prioritization aid, not a publication decision.
+    Risk thresholds:
+      HIGH     primary fires AND total ≥ 5
+      MEDIUM   primary fires AND total ≥ 3, OR supporting total ≥ 4
+      LOW      otherwise
+      EXCLUDED facility is FCCH (rule doesn't apply)
+
+    When parcel is tax-exempt or a commercial condo, we still score it but
+    wrap the result with `INSUFFICIENT_DATA` so a reviewer knows the sqft is
+    likely under-reported; do not auto-treat as a publication candidate.
     """
     is_center = (facility_type in CENTER_TYPES) if facility_type else True
     if not is_center:
         return {
             "risk": "EXCLUDED",
-            "reason": "Facility is not a center (likely FCCH) — Title 22 35/75 sqft rule does not apply",
+            "reason": "Facility is not a center (likely FCCH) — CCR 22 §101230(c) 35/75 sqft rule does not apply",
             "facility": facility_name,
             "type": facility_type,
             "type_label": TYPE_LABELS.get(facility_type, f"TYPE {facility_type}"),
         }
-    if parcel_is_exempt:
-        return {
-            "risk": "EXCLUDED",
-            "reason": "Tax-exempt parcel — Assessor `property_area` is unreliable (YMCA, SFUSD, religious, city-owned)",
-            "facility": facility_name,
-        }
-    if parcel_is_condo:
-        return {
-            "risk": "EXCLUDED",
-            "reason": "Commercial condo parcel — single parcel likely under-represents full facility footprint",
-            "facility": facility_name,
-        }
 
-    indoor_fails = indoor_verdict in ("impossible", "implausible")
+    indoor_impossible = indoor_verdict == "impossible"
+    indoor_implausible = indoor_verdict == "implausible"
     outdoor_fails = outdoor_verdict == "outdoor_insufficient"
     parcel_res = False
     if parcel_use_definition:
         pl = parcel_use_definition.lower()
-        parcel_res = any(m in pl for m in ("single family", "sfr", "dwelling", "residential", "apartment"))
+        parcel_res = any(
+            m in pl
+            for m in ("single family", "sfr", "dwelling", "residential", "apartment", "sro")
+        )
 
     signals = [
-        {"id": "S1", "name": "type_is_center", "fired": is_center,
+        {"id": "S1",  "name": "type_is_center",           "fired": True, "weight": 0,
          "note": f"TYPE {facility_type} ({TYPE_LABELS.get(facility_type, '?')})"},
-        {"id": "S2", "name": "indoor_fails", "fired": indoor_fails,
+        {"id": "S2a", "name": "indoor_impossible",        "fired": indoor_impossible, "weight": 3,
+         "note": f"indoor verdict: {indoor_verdict}" + (
+                 f" (short {int(indoor_deficit_sqft)} sqft)" if indoor_deficit_sqft and indoor_impossible else "")},
+        {"id": "S2b", "name": "indoor_implausible",       "fired": indoor_implausible, "weight": 2,
          "note": f"indoor verdict: {indoor_verdict}"},
-        {"id": "S3", "name": "outdoor_fails", "fired": outdoor_fails,
+        {"id": "S3",  "name": "outdoor_fails",            "fired": outdoor_fails, "weight": 1,
          "note": f"outdoor verdict: {outdoor_verdict}"},
-        {"id": "S4", "name": "no_change_of_use_permit", "fired": not change_of_use_found,
-         "note": "no DBI permit converts to child-care use" if not change_of_use_found else "change-of-use permit on record"},
-        {"id": "S5", "name": "active_code_problem", "fired": has_open_nov_or_311,
-         "note": "open NOV or active 311 illegal-use at address" if has_open_nov_or_311 else "no active complaints"},
-        {"id": "S6", "name": "residential_parcel", "fired": parcel_res,
+        {"id": "S4",  "name": "no_change_of_use_permit",  "fired": not change_of_use_found, "weight": 1,
+         "note": "no DBI permit converts to child-care use" if not change_of_use_found
+                 else "change-of-use permit on record"},
+        {"id": "S5",  "name": "active_code_problem",      "fired": has_open_nov_or_311, "weight": 2,
+         "note": "open housing NOV or active 311 illegal-use" if has_open_nov_or_311
+                 else "no active complaints"},
+        {"id": "S6",  "name": "residential_parcel",       "fired": parcel_res, "weight": 1,
          "note": f"parcel use: {parcel_use_definition or 'unknown'}"},
     ]
     fired = sum(1 for s in signals if s["fired"])
-    if fired >= 5:
+    points = sum(s["weight"] for s in signals if s["fired"])
+    primary_fires = indoor_impossible or indoor_implausible
+
+    if primary_fires and points >= 5:
         risk = "HIGH"
-    elif fired >= 3:
+    elif (primary_fires and points >= 3) or points >= 4:
         risk = "MEDIUM"
     else:
         risk = "LOW"
 
+    data_gap = None
+    if parcel_is_exempt:
+        data_gap = "tax_exempt"
+        risk = "INSUFFICIENT_DATA"
+    elif parcel_is_condo:
+        data_gap = "commercial_condo"
+        if risk == "HIGH":
+            risk = "INSUFFICIENT_DATA"
+
     complaint_url = (
         "https://www.cdss.ca.gov/inforesources/community-care-licensing/file-a-complaint"
     )
-    tweet_draft = _draft_tweet(facility_name, address, capacity, risk, signals, fired)
+    tweet_draft = _draft_tweet(facility_name, address, capacity, risk, signals, points)
 
     return {
         "risk": risk,
+        "points": points,
         "signals_fired": fired,
-        "signals_total": len(signals),
+        "signals_total": len([s for s in signals if s["weight"] > 0]),
+        "primary_fires": primary_fires,
         "signals": signals,
         "facility": facility_name,
         "address": address,
         "capacity": capacity,
+        "data_gap": data_gap,
         "tweet_draft": tweet_draft,
         "ccld_complaint_url": complaint_url,
         "data_caveat": (
@@ -487,9 +510,9 @@ def risk_scorecard(
             "publishing."
         ),
         "posting_policy": (
-            "Human review required. Do not auto-post. Only HIGH-risk with 5+ signals fired "
-            "is a publication candidate, and only after visual confirmation via Street View "
-            "and cross-checking the CCLD license status is current."
+            "Human review required. Do not auto-post. Only HIGH-risk is a publication "
+            "candidate, and only after visual confirmation via Street View and cross-"
+            "checking the CCLD license status is current."
         ),
     }
 
@@ -578,29 +601,28 @@ def satellite_image(address: str, *, zoom: int = 19) -> dict[str, Any]:
 
 
 def _draft_tweet(name: str, address: str, capacity: int, risk: str,
-                 signals: list[dict], fired: int) -> str:
+                 signals: list[dict], points: int) -> str:
     if risk != "HIGH":
-        return f"(risk={risk}, {fired}/6 signals — not a publication candidate)"
-    fired_names = [s["name"] for s in signals if s["fired"]]
+        return f"(risk={risk}, {points} points — not a publication candidate)"
+    label_map = {
+        "indoor_impossible": "Building literally smaller than Title 22 minimum (35 sqft/child indoor)",
+        "indoor_implausible": "Building sqft < Title 22 activity-space minimum (35 sqft/child)",
+        "outdoor_fails": "Lot − building < Title 22 outdoor minimum (75 sqft/child)",
+        "no_change_of_use_permit": "No DBI permit converting use to child care",
+        "active_code_problem": "Active housing NOV or 311 illegal-use complaint at address",
+        "residential_parcel": "Assessor lists parcel as residential use",
+    }
+    bullets = [
+        f"• {label_map[s['name']]}"
+        for s in signals if s["fired"] and s["name"] in label_map
+    ]
     lines = [
         f"⚠ Licensed for {capacity} children at {address}, but the data says the building can't hold them.",
         "",
-        f"{name}",
+        name,
         "",
         "Signals from SF public data:",
-    ]
-    label_map = {
-        "type_is_center": "Licensed as a child care center",
-        "indoor_fails": "Building sqft < Title 22 indoor minimum (35/child)",
-        "outdoor_fails": "Lot sqft < Title 22 outdoor minimum (75/child)",
-        "no_change_of_use_permit": "No DBI permit converting use to child care",
-        "active_code_problem": "Active housing NOV or 311 illegal-use complaint",
-        "residential_parcel": "Assessor lists parcel as residential use",
-    }
-    for s in signals:
-        if s["fired"]:
-            lines.append(f"• {label_map.get(s['name'], s['name'])}")
-    lines += [
+        *bullets,
         "",
         "Source: CCLD + data.sfgov.org via hermai.ai",
         "File a CCLD complaint: cdss.ca.gov/inforesources/community-care-licensing",
