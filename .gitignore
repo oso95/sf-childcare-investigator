@@ -6,3 +6,7 @@ __pycache__/
 .DS_Store
 output/
 *.log
+
+# Design mock (not part of the product)
+SF Childcare Investigator _standalone_.html
+

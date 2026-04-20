@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import re
+import urllib.parse
 from typing import Any
 
 import httpx
@@ -12,7 +14,26 @@ CCL_FACILITIES_URL = (
     "CDSS_CCL_Facilities/FeatureServer/0/query"
 )
 
-SF_TITLE_22_SQFT_PER_CHILD = 35
+# CCR Title 22 §101230(c): 35 sqft indoor activity space per child — centers only.
+SF_TITLE_22_INDOOR_SQFT_PER_CHILD = 35
+# CCR Title 22 §101230(c): 75 sqft of outdoor activity space per child — centers only.
+SF_TITLE_22_OUTDOOR_SQFT_PER_CHILD = 75
+
+# CCLD TYPE codes to which the sqft-per-child rule applies.
+# 830 = Infant Care Center, 840 = Child Care Center, 850 = Preschool, 860 = School Age Center.
+# Family Child Care Homes (TYPE 200/202/204) are regulated by capacity tier, NOT sqft,
+# so they must be excluded from the indoor/outdoor impossibility check.
+CENTER_TYPES = {830, 840, 850, 860}
+FCCH_TYPES = {200, 202, 204}
+TYPE_LABELS = {
+    830: "Infant Care Center",
+    840: "Child Care Center",
+    850: "Preschool",
+    860: "School Age Center",
+    200: "Family Child Care Home (small)",
+    202: "Family Child Care Home (large)",
+    204: "Family Child Care Home",
+}
 
 
 def _soql_escape(value: str) -> str:
@@ -62,10 +83,20 @@ def ccld_facility_lookup(
     name: str | None = None,
     street_address: str | None = None,
     capacity_min: int | None = None,
+    centers_only: bool = True,
     limit: int = 25,
 ) -> dict[str, Any]:
-    """Query the CDSS CCL Facilities ArcGIS layer restricted to San Francisco child care."""
+    """
+    Query CDSS CCL Facilities ArcGIS, restricted to SF child care.
+
+    `centers_only=True` (default) drops Family Child Care Homes (FCCH) because
+    they are regulated by head-count tiers, NOT by the 35-sqft-per-child rule,
+    so they must not be scored with the Title 22 indoor/outdoor checks.
+    """
     clauses = ["COUNTY='San Francisco'", "PROGRAM_TYPE='CHILD CARE'"]
+    if centers_only:
+        type_list = ",".join(str(t) for t in sorted(CENTER_TYPES))
+        clauses.append(f"TYPE IN ({type_list})")
     if name:
         clauses.append(f"UPPER(NAME) LIKE '%{_soql_escape(name.upper())}%'")
     if street_address:
@@ -85,9 +116,16 @@ def ccld_facility_lookup(
     if resp.status_code != 200:
         raise HermaiError(f"CCL ArcGIS {resp.status_code}: {resp.text[:200]}")
     features = resp.json().get("features", [])
+    enriched = []
+    for feat in features:
+        a = feat["attributes"]
+        a["TYPE_LABEL"] = TYPE_LABELS.get(a.get("TYPE"), f"TYPE {a.get('TYPE')}")
+        a["IS_CENTER"] = a.get("TYPE") in CENTER_TYPES
+        enriched.append(a)
     return {
-        "count": len(features),
-        "facilities": [f["attributes"] for f in features],
+        "count": len(enriched),
+        "centers_only": centers_only,
+        "facilities": enriched,
     }
 
 
@@ -222,7 +260,7 @@ def evictions_lookup(address_prefix: str, limit: int = 25) -> dict[str, Any]:
 
 
 def physical_impossibility_check(capacity: int, building_sqft: float,
-                                 sqft_per_child: float = SF_TITLE_22_SQFT_PER_CHILD) -> dict[str, Any]:
+                                 sqft_per_child: float = SF_TITLE_22_INDOOR_SQFT_PER_CHILD) -> dict[str, Any]:
     """
     CA Title 22 requires 35 sqft of indoor activity space per child.
 
@@ -268,8 +306,303 @@ def physical_impossibility_check(capacity: int, building_sqft: float,
         "ratio_required_to_building": round(required_sqft / building_sqft, 3),
         "verdict": verdict,
         "rule": (
-            f"CA Title 22 requires {sqft_per_child} sqft of indoor activity space per child. "
+            f"CCR Title 22 §101230(c): {sqft_per_child} sqft of indoor activity space per child "
+            f"(exclusive of kitchen, storage, laundry, bathrooms, halls). "
             f"`impossible` = required > total building sqft. "
             f"`implausible` = required > 70% of building sqft (rest is non-activity space)."
         ),
     }
+
+
+def outdoor_space_check(capacity: int, lot_sqft: float, building_sqft: float,
+                        sqft_per_child: float = SF_TITLE_22_OUTDOOR_SQFT_PER_CHILD) -> dict[str, Any]:
+    """
+    CCR Title 22 §101230(c): 75 sqft of outdoor activity space per child — centers only.
+    Approximated by `lot - building` (the remaining lot area after the footprint).
+
+    Real outdoor activity space must be on-site and accessible; this is a best-effort
+    proxy. Don't flag on this alone; use it as a compound signal.
+    """
+    if not lot_sqft or lot_sqft <= 0:
+        return {"verdict": "could_not_verify", "note": "lot_area missing or 0 (often tax-exempt parcels)"}
+    approx_outdoor = max(lot_sqft - (building_sqft or 0), 0)
+    required = capacity * sqft_per_child
+    if approx_outdoor < required:
+        verdict = "outdoor_insufficient"
+    else:
+        verdict = "outdoor_sufficient"
+    return {
+        "capacity": capacity,
+        "sqft_per_child": sqft_per_child,
+        "required_outdoor_sqft": required,
+        "lot_sqft": lot_sqft,
+        "building_sqft": building_sqft,
+        "approx_outdoor_sqft": approx_outdoor,
+        "ratio_required_to_approx": round(required / approx_outdoor, 3) if approx_outdoor else None,
+        "verdict": verdict,
+        "rule": (
+            f"CCR Title 22 §101230(c): {sqft_per_child} sqft outdoor activity space per child. "
+            f"Using `lot_area - building_area` as a conservative proxy. Real outdoor space "
+            f"must be on-site and accessible."
+        ),
+    }
+
+
+def permits_change_of_use_check(permits: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    Given a list of permit rows (from permits_lookup), look for a change-of-use from
+    residential/retail into school/daycare/child-care. Returns:
+      - change_of_use_found: bool
+      - matching_permits: the ones whose existing_use or proposed_use contains a daycare-y word
+    A missing change-of-use permit at a residentially-zoned facility is a strong signal.
+    """
+    if not permits:
+        return {"change_of_use_found": False, "matching_permits": [], "total_permits": 0}
+    daycare_markers = ("school", "child care", "childcare", "day care", "daycare", "preschool", "nursery")
+    residential_markers = ("dwelling", "residential", "1 family", "2 family", "sfr", "single family", "apartment")
+    matches = []
+    for p in permits:
+        proposed = (p.get("proposed_use") or "").lower()
+        existing = (p.get("existing_use") or "").lower()
+        desc = (p.get("description") or "").lower()
+        has_daycare_proposed = any(m in proposed for m in daycare_markers) or any(m in desc for m in daycare_markers)
+        has_residential_existing = any(m in existing for m in residential_markers)
+        if has_daycare_proposed:
+            matches.append({
+                "permit_number": p.get("permit_number"),
+                "status": p.get("status"),
+                "filed_date": p.get("filed_date"),
+                "existing_use": p.get("existing_use"),
+                "proposed_use": p.get("proposed_use"),
+                "description": (p.get("description") or "")[:200],
+                "existing_was_residential": has_residential_existing,
+            })
+    return {
+        "change_of_use_found": len(matches) > 0,
+        "total_permits": len(permits),
+        "matching_permits": matches,
+    }
+
+
+def risk_scorecard(
+    *,
+    facility_name: str,
+    address: str,
+    capacity: int,
+    facility_type: int | None = None,
+    indoor_verdict: str,
+    outdoor_verdict: str,
+    change_of_use_found: bool,
+    has_open_nov_or_311: bool,
+    parcel_use_definition: str | None = None,
+    parcel_is_condo: bool = False,
+    parcel_is_exempt: bool = False,
+) -> dict[str, Any]:
+    """
+    Compound risk scorecard. Six signals; reports count of signals fired and
+    HIGH/MEDIUM/LOW/EXCLUDED risk.
+
+    Signals (true = risk-relevant):
+      S1. type_is_center       — TYPE in {830,840,850,860}. If false → EXCLUDED (FCCH).
+      S2. indoor_fails         — indoor_verdict is 'impossible' or 'implausible'.
+      S3. outdoor_fails        — outdoor_verdict is 'outdoor_insufficient'.
+      S4. no_change_of_use     — no DBI permit converts to school/day care use.
+      S5. active_code_problem  — open housing NOV or active 311 illegal-use at address.
+      S6. residential_parcel   — parcel use_definition implies residential/SFR.
+
+    HIGH if >=5 of 6 fire AND not EXCLUDED AND not parcel_is_exempt AND not parcel_is_condo.
+    MEDIUM if 3-4. LOW if <3.
+
+    Never auto-post. This scorecard is a prioritization aid, not a publication decision.
+    """
+    is_center = (facility_type in CENTER_TYPES) if facility_type else True
+    if not is_center:
+        return {
+            "risk": "EXCLUDED",
+            "reason": "Facility is not a center (likely FCCH) — Title 22 35/75 sqft rule does not apply",
+            "facility": facility_name,
+            "type": facility_type,
+            "type_label": TYPE_LABELS.get(facility_type, f"TYPE {facility_type}"),
+        }
+    if parcel_is_exempt:
+        return {
+            "risk": "EXCLUDED",
+            "reason": "Tax-exempt parcel — Assessor `property_area` is unreliable (YMCA, SFUSD, religious, city-owned)",
+            "facility": facility_name,
+        }
+    if parcel_is_condo:
+        return {
+            "risk": "EXCLUDED",
+            "reason": "Commercial condo parcel — single parcel likely under-represents full facility footprint",
+            "facility": facility_name,
+        }
+
+    indoor_fails = indoor_verdict in ("impossible", "implausible")
+    outdoor_fails = outdoor_verdict == "outdoor_insufficient"
+    parcel_res = False
+    if parcel_use_definition:
+        pl = parcel_use_definition.lower()
+        parcel_res = any(m in pl for m in ("single family", "sfr", "dwelling", "residential", "apartment"))
+
+    signals = [
+        {"id": "S1", "name": "type_is_center", "fired": is_center,
+         "note": f"TYPE {facility_type} ({TYPE_LABELS.get(facility_type, '?')})"},
+        {"id": "S2", "name": "indoor_fails", "fired": indoor_fails,
+         "note": f"indoor verdict: {indoor_verdict}"},
+        {"id": "S3", "name": "outdoor_fails", "fired": outdoor_fails,
+         "note": f"outdoor verdict: {outdoor_verdict}"},
+        {"id": "S4", "name": "no_change_of_use_permit", "fired": not change_of_use_found,
+         "note": "no DBI permit converts to child-care use" if not change_of_use_found else "change-of-use permit on record"},
+        {"id": "S5", "name": "active_code_problem", "fired": has_open_nov_or_311,
+         "note": "open NOV or active 311 illegal-use at address" if has_open_nov_or_311 else "no active complaints"},
+        {"id": "S6", "name": "residential_parcel", "fired": parcel_res,
+         "note": f"parcel use: {parcel_use_definition or 'unknown'}"},
+    ]
+    fired = sum(1 for s in signals if s["fired"])
+    if fired >= 5:
+        risk = "HIGH"
+    elif fired >= 3:
+        risk = "MEDIUM"
+    else:
+        risk = "LOW"
+
+    complaint_url = (
+        "https://www.cdss.ca.gov/inforesources/community-care-licensing/file-a-complaint"
+    )
+    tweet_draft = _draft_tweet(facility_name, address, capacity, risk, signals, fired)
+
+    return {
+        "risk": risk,
+        "signals_fired": fired,
+        "signals_total": len(signals),
+        "signals": signals,
+        "facility": facility_name,
+        "address": address,
+        "capacity": capacity,
+        "tweet_draft": tweet_draft,
+        "ccld_complaint_url": complaint_url,
+        "data_caveat": (
+            "Parcel figures from SF Assessor closed-roll 2016. Post-2016 expansions "
+            "(permits, additions, remodels) may not be reflected. Verify manually before "
+            "publishing."
+        ),
+        "posting_policy": (
+            "Human review required. Do not auto-post. Only HIGH-risk with 5+ signals fired "
+            "is a publication candidate, and only after visual confirmation via Street View "
+            "and cross-checking the CCLD license status is current."
+        ),
+    }
+
+
+def street_view_image(address: str, *, heading: int | None = None,
+                      pitch: int = 0, fov: int = 80) -> dict[str, Any]:
+    """
+    Build a Google Street View Static API URL for an SF address and call the free
+    metadata endpoint to confirm imagery exists there. Returns:
+      {has_imagery, image_url, metadata_status, pano_id, lat, lng, street_view_link}
+
+    `image_url` is a signed-less Static API URL; if GOOGLE_MAPS_API_KEY is set the
+    key is appended so it renders. The metadata check is free and doesn't count
+    against image quota.
+
+    Use this as a compound signal only: Street View suggests whether the address
+    looks residential vs commercial, but the LLM can't see the image — return the
+    URL for human review.
+    """
+    api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+    loc = urllib.parse.quote_plus(f"{address}, San Francisco, CA")
+
+    metadata: dict[str, Any] = {"status": "UNKNOWN"}
+    if api_key:
+        meta_url = (
+            "https://maps.googleapis.com/maps/api/streetview/metadata"
+            f"?location={loc}&source=outdoor&key={api_key}"
+        )
+        try:
+            r = httpx.get(meta_url, timeout=_DEFAULT_TIMEOUT)
+            if r.status_code == 200:
+                metadata = r.json()
+        except httpx.HTTPError:
+            metadata = {"status": "REQUEST_FAILED"}
+
+    params = {"size": "640x400", "location": f"{address}, San Francisco, CA",
+              "fov": str(fov), "pitch": str(pitch), "source": "outdoor"}
+    if heading is not None:
+        params["heading"] = str(heading)
+    if api_key:
+        params["key"] = api_key
+    image_url = (
+        "https://maps.googleapis.com/maps/api/streetview?"
+        + urllib.parse.urlencode(params)
+    )
+    # Human-viewable Street View link (no key required).
+    street_view_link = f"https://www.google.com/maps/place/{loc}"
+
+    return {
+        "has_imagery": metadata.get("status") == "OK",
+        "metadata_status": metadata.get("status"),
+        "pano_id": metadata.get("pano_id"),
+        "lat": metadata.get("location", {}).get("lat") if isinstance(metadata.get("location"), dict) else None,
+        "lng": metadata.get("location", {}).get("lng") if isinstance(metadata.get("location"), dict) else None,
+        "image_url": image_url,
+        "street_view_link": street_view_link,
+        "note": (
+            "API-only agents cannot see the image; return the URL for human review. "
+            "When key is absent, image_url is still usable if a GOOGLE_MAPS_API_KEY "
+            "is appended."
+        ),
+    }
+
+
+def satellite_image(address: str, *, zoom: int = 19) -> dict[str, Any]:
+    """
+    Google Maps Static Satellite URL for the address. Good for roof-footprint
+    vs parcel-area sanity checks. Returns {image_url, map_link}.
+    """
+    api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+    loc = f"{address}, San Francisco, CA"
+    loc_q = urllib.parse.quote_plus(loc)
+    params = {"center": loc, "zoom": str(zoom), "size": "640x480",
+              "maptype": "satellite", "scale": "2"}
+    if api_key:
+        params["key"] = api_key
+    image_url = (
+        "https://maps.googleapis.com/maps/api/staticmap?"
+        + urllib.parse.urlencode(params)
+    )
+    return {
+        "image_url": image_url,
+        "map_link": f"https://www.google.com/maps/place/{loc_q}",
+        "zoom": zoom,
+    }
+
+
+def _draft_tweet(name: str, address: str, capacity: int, risk: str,
+                 signals: list[dict], fired: int) -> str:
+    if risk != "HIGH":
+        return f"(risk={risk}, {fired}/6 signals — not a publication candidate)"
+    fired_names = [s["name"] for s in signals if s["fired"]]
+    lines = [
+        f"⚠ Licensed for {capacity} children at {address}, but the data says the building can't hold them.",
+        "",
+        f"{name}",
+        "",
+        "Signals from SF public data:",
+    ]
+    label_map = {
+        "type_is_center": "Licensed as a child care center",
+        "indoor_fails": "Building sqft < Title 22 indoor minimum (35/child)",
+        "outdoor_fails": "Lot sqft < Title 22 outdoor minimum (75/child)",
+        "no_change_of_use_permit": "No DBI permit converting use to child care",
+        "active_code_problem": "Active housing NOV or 311 illegal-use complaint",
+        "residential_parcel": "Assessor lists parcel as residential use",
+    }
+    for s in signals:
+        if s["fired"]:
+            lines.append(f"• {label_map.get(s['name'], s['name'])}")
+    lines += [
+        "",
+        "Source: CCLD + data.sfgov.org via hermai.ai",
+        "File a CCLD complaint: cdss.ca.gov/inforesources/community-care-licensing",
+    ]
+    return "\n".join(lines)

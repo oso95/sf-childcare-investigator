@@ -2,142 +2,804 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>SF Childcare Investigator</title>
+<title>CCLD Investigator — San Francisco</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0f1720;
-    --panel: #18222c;
-    --ink: #e6edf3;
-    --ink-dim: #97a3b3;
-    --accent: #ffb454;
-    --ok: #73d13d;
-    --warn: #ff7875;
-    --border: #2a3542;
+    --ink: #0e1620;
+    --ink2: #2a3340;
+    --ink3: #55616e;
+    --ink4: #8a95a1;
+    --line: #dde2e8;
+    --line2: #eceff3;
+    --bg: #ffffff;
+    --bg2: #f6f7f9;
+    --bg3: #eef1f4;
+
+    --flag:   oklch(0.58 0.16 28);
+    --flagBg: oklch(0.97 0.02 28);
+    --warn:   oklch(0.72 0.13 80);
+    --warnBg: oklch(0.97 0.03 85);
+    --ok:     oklch(0.58 0.09 165);
+    --okBg:   oklch(0.97 0.02 165);
+    --accent: oklch(0.46 0.14 250);
+    --accentBg: oklch(0.96 0.03 250);
+
+    --sans: "Inter Tight", Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+    --serif: "Source Serif 4", "Source Serif Pro", Georgia, serif;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-         background: var(--bg); color: var(--ink); }
-  header { padding: 18px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 16px; }
-  header h1 { margin: 0; font-size: 20px; font-weight: 600; }
-  header .tag { font-size: 12px; color: var(--ink-dim); }
-  main { display: grid; grid-template-columns: 360px 1fr; min-height: calc(100vh - 58px); }
-  aside { padding: 20px; border-right: 1px solid var(--border); }
-  aside label { display: block; font-size: 12px; color: var(--ink-dim); margin: 14px 0 4px; text-transform: uppercase; letter-spacing: .05em; }
-  aside input, aside textarea, aside select {
-    width: 100%; background: var(--panel); color: var(--ink); border: 1px solid var(--border);
-    border-radius: 6px; padding: 8px 10px; font: inherit;
+  html, body { margin: 0; padding: 0; background: var(--bg); }
+  body { font: 14px/1.5 var(--sans); color: var(--ink); }
+  a { color: var(--accent); text-decoration: none; }
+
+  /* ─── Header ─── */
+  .appbar {
+    background: var(--ink);
+    color: #fff;
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    border-bottom: 1px solid var(--ink2);
   }
-  aside textarea { min-height: 110px; resize: vertical; }
-  aside button {
-    margin-top: 18px; width: 100%; background: var(--accent); color: #1a1a1a; border: 0;
-    padding: 10px; border-radius: 6px; font-weight: 600; cursor: pointer;
+  .wordmark { display: flex; align-items: center; gap: 10px; }
+  .wordmark svg { display: block; }
+  .wordmark .name { font-size: 13px; font-weight: 600; letter-spacing: -0.1px; line-height: 1; color: #fff; }
+  .wordmark .meta {
+    font-size: 10.5px; color: rgba(255,255,255,0.55);
+    margin-top: 4px; letter-spacing: 0.4px; text-transform: uppercase; line-height: 1;
   }
-  aside button:disabled { background: #4a4a4a; color: #999; cursor: not-allowed; }
-  section.work { padding: 24px 32px; overflow-y: auto; }
-  .log { font-family: "SF Mono", Menlo, monospace; font-size: 12px; white-space: pre-wrap;
-         background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-         padding: 14px; max-height: 280px; overflow-y: auto; color: var(--ink-dim); }
-  .log .call { color: var(--accent); }
-  .log .result { color: var(--ok); }
-  .log .err { color: var(--warn); }
-  .report { margin-top: 18px; background: var(--panel); border: 1px solid var(--border);
-            border-radius: 8px; padding: 22px; font-size: 14px; }
-  .report h1, .report h2, .report h3 { color: var(--accent); }
-  .report code { background: #0a1016; padding: 1px 6px; border-radius: 4px; }
-  .kpi { display: flex; gap: 18px; margin-bottom: 12px; color: var(--ink-dim); font-size: 12px; }
-  .kpi strong { color: var(--ink); }
+  .appbar nav { display: flex; gap: 2px; margin-left: 16px; }
+  .appbar .navbtn {
+    padding: 6px 12px 8px;
+    font: inherit; font-size: 13px; font-weight: 400;
+    color: rgba(255,255,255,0.6);
+    background: transparent; border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -15px;
+    cursor: pointer;
+  }
+  .appbar .navbtn:hover { color: rgba(255,255,255,0.9); }
+  .appbar .navbtn.active {
+    color: #fff; font-weight: 600;
+    border-bottom-color: #fff;
+  }
+
+  /* ─── Drawer (data sources) ─── */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(14,22,32,0.45);
+    opacity: 0; pointer-events: none; transition: opacity .18s ease;
+    z-index: 50;
+  }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(520px, 90vw);
+    background: var(--bg);
+    border-left: 1px solid var(--line);
+    transform: translateX(100%);
+    transition: transform .22s cubic-bezier(.2,.8,.2,1);
+    z-index: 51;
+    display: flex; flex-direction: column;
+  }
+  body.drawer-open .scrim { opacity: 1; pointer-events: auto; }
+  body.drawer-open .drawer { transform: translateX(0); }
+
+  .drawer-head {
+    padding: 22px 24px 18px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  .drawer-head .eyebrow { margin-bottom: 4px; }
+  .drawer-head h2 {
+    font: 600 20px/1.2 var(--sans);
+    letter-spacing: -0.4px; margin: 0; color: var(--ink);
+  }
+  .drawer-head .close {
+    margin-left: auto; background: transparent; border: 0;
+    font-family: var(--mono); font-size: 16px; color: var(--ink3);
+    cursor: pointer; padding: 4px 8px;
+  }
+  .drawer-body { padding: 8px 0; overflow-y: auto; flex: 1; }
+
+  .src {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--line2);
+  }
+  .src:last-child { border-bottom: 0; }
+  .src .top {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px;
+  }
+  .src .num {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink4); min-width: 18px;
+  }
+  .src .name { font-weight: 600; color: var(--ink); font-size: 14px; }
+  .src .via {
+    margin-left: auto; font-family: var(--mono);
+    font-size: 10.5px; color: var(--ink4);
+    padding: 2px 6px; background: var(--bg3);
+    letter-spacing: 0.3px;
+  }
+  .src .via.hermai { background: var(--accentBg); color: var(--accent); text-decoration: none; }
+  .src .via.hermai:hover { text-decoration: underline; }
+  .src .endpoint {
+    font-family: var(--mono); font-size: 11.5px;
+    color: var(--ink3); margin-left: 28px; margin-bottom: 6px;
+    word-break: break-all;
+  }
+  .src .desc {
+    font-size: 12.5px; color: var(--ink3);
+    line-height: 1.5; margin-left: 28px;
+  }
+
+  .drawer-foot {
+    padding: 14px 24px; background: var(--bg2);
+    border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: 11px; color: var(--ink4);
+    line-height: 1.5;
+  }
+  .appbar .spacer { flex: 1; }
+  .appbar .sess {
+    font-family: var(--mono); font-size: 11px;
+    color: rgba(255,255,255,0.55);
+  }
+  .appbar .sfbadge {
+    width: 28px; height: 28px; border-radius: 14px;
+    background: var(--ink2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; color: #fff;
+  }
+
+  /* ─── Breadcrumb ─── */
+  .breadcrumb {
+    padding: 12px 28px;
+    border-bottom: 1px solid var(--line2);
+    font-family: var(--mono); font-size: 11px; color: var(--ink4);
+    display: flex; gap: 8px;
+  }
+  .breadcrumb .cur { color: var(--ink2); }
+
+  /* ─── Layout ─── */
+  main {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    min-height: calc(100vh - 59px - 39px);
+  }
+  aside.form {
+    padding: 28px 24px;
+    border-right: 1px solid var(--line);
+    background: var(--bg);
+  }
+  section.work { padding: 24px 28px 40px; overflow-y: auto; }
+
+  /* ─── Form ─── */
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink4); letter-spacing: 0.6px;
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+  h1.pagetitle {
+    font: 600 24px/1.2 var(--sans);
+    letter-spacing: -0.6px; margin: 0 0 8px;
+    color: var(--ink);
+  }
+  .lede {
+    font-size: 13px; color: var(--ink3);
+    line-height: 1.55; margin-bottom: 24px;
+  }
+
+  .field { margin-bottom: 18px; }
+  .field .label {
+    display: flex; justify-content: space-between;
+    align-items: baseline; margin-bottom: 6px;
+  }
+  .field .label .name {
+    font-size: 11px; font-weight: 600;
+    color: var(--ink2); letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .field .label .hint { font-size: 11px; color: var(--ink4); }
+
+  .field .inp, .field textarea {
+    width: 100%; font: 13px/1.5 var(--sans);
+    background: #fff; border: 1px solid var(--line);
+    border-radius: 3px; padding: 10px 12px;
+    color: var(--ink);
+  }
+  .field textarea {
+    font-family: var(--mono); font-size: 12.5px;
+    resize: vertical; min-height: 96px;
+  }
+  .field .inp:focus, .field textarea:focus {
+    outline: none; border-color: var(--ink2);
+  }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .btn {
+    padding: 11px 18px; font: 500 14px var(--sans);
+    border: 0; border-radius: 3px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .btn-primary { background: var(--ink); color: #fff; }
+  .btn-primary:disabled { background: var(--ink3); cursor: not-allowed; }
+  .btn-primary .kbd { font-family: var(--mono); font-size: 11px; opacity: 0.65; }
+  .btn-ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+
+  .meta-line {
+    margin-top: 16px; font-family: var(--mono);
+    font-size: 11px; color: var(--ink4);
+  }
+
+  /* ─── Status strip ─── */
+  .statusStrip {
+    display: flex; gap: 22px; align-items: center;
+    padding: 14px 0 18px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 22px;
+  }
+  .mini {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .mini .k {
+    font-size: 10px; color: var(--ink4);
+    letter-spacing: 0.5px; text-transform: uppercase; font-weight: 600;
+  }
+  .mini .v {
+    font-family: var(--mono); font-size: 15px;
+    font-weight: 600; color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .pill {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 10px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+  }
+  .pill .dot {
+    width: 7px; height: 7px; border-radius: 4px;
+    box-shadow: 0 0 0 3px transparent;
+  }
+  .pill.idle    { background: var(--bg3);  color: var(--ink3); border-color: var(--line); }
+  .pill.running { background: var(--accentBg); color: var(--accent); border-color: color-mix(in oklch, var(--accent) 20%, transparent); }
+  .pill.running .dot { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 15%, transparent); animation: pulse 1.2s ease-in-out infinite; }
+  .pill.done    { background: var(--okBg); color: var(--ok);     border-color: color-mix(in oklch, var(--ok)     20%, transparent); }
+  .pill.done .dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ok) 15%, transparent); }
+  .pill.errored { background: var(--flagBg); color: var(--flag); border-color: color-mix(in oklch, var(--flag)   20%, transparent); }
+  .pill.errored .dot { background: var(--flag); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  /* ─── Section head ─── */
+  .sectionhead {
+    display: flex; align-items: baseline; gap: 12px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 8px; margin-bottom: 16px;
+  }
+  .sectionhead .t {
+    font-size: 11px; color: var(--ink3);
+    font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase;
+  }
+  .sectionhead .r {
+    margin-left: auto; font-family: var(--mono);
+    font-size: 11px; color: var(--ink4);
+  }
+
+  /* ─── Event stream ─── */
+  .stream { display: flex; flex-direction: column; gap: 4px; margin-bottom: 28px; }
+  .ev { padding: 6px 12px; font-family: var(--mono); font-size: 12px; display: flex; gap: 10px; align-items: center; }
+  .ev .t { color: var(--ink4); font-size: 10px; min-width: 54px; }
+  .ev.assistant {
+    padding: 10px 14px; border-left: 2px solid var(--accent);
+    background: var(--accentBg);
+    font-family: var(--sans); font-size: 13px; line-height: 1.55; color: var(--ink);
+    display: block;
+  }
+  .ev.assistant .hdr {
+    font-family: var(--mono); font-size: 10px; color: var(--ink4);
+    letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;
+  }
+  .ev .arrow { font-weight: 600; }
+  .ev.tool_call .arrow { color: var(--accent); }
+  .ev.tool_call .name { color: var(--ink); font-weight: 600; }
+  .ev.tool_call .args { color: var(--ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ev.tool_result .arrow { color: var(--ok); }
+  .ev.tool_result .name { color: var(--ink2); }
+  .ev.tool_result .summary { color: var(--ink); }
+  .ev.tool_result .ms { color: var(--ink4); margin-left: auto; }
+  .ev.tool_result.flag .arrow { color: var(--flag); }
+  .ev.tool_result.flag .summary {
+    color: var(--flag); font-weight: 700;
+    padding: 1px 6px; background: var(--flagBg);
+  }
+  .ev.tool_result.err .arrow { color: var(--flag); }
+  .ev.tool_result.err .summary { color: var(--flag); }
+  .ev.error {
+    padding: 10px 14px; background: var(--flagBg); color: var(--flag);
+    border-left: 2px solid var(--flag);
+    font-family: var(--mono); font-size: 12px;
+    display: block;
+  }
+
+  /* ─── Report ─── */
+  .report {
+    background: var(--ink); color: #fff;
+    padding: 28px 32px; margin-top: 18px;
+  }
+  .report .hdr {
+    font-family: var(--mono); font-size: 10.5px;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 0.5px; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .report .body {
+    font-family: var(--serif); font-size: 16px; line-height: 1.6;
+    color: rgba(255,255,255,0.92);
+  }
+  .report .body h1,
+  .report .body h2,
+  .report .body h3 {
+    font-family: var(--sans);
+    font-weight: 600; letter-spacing: -0.3px;
+    color: #fff; margin: 22px 0 10px;
+  }
+  .report .body h1 { font-size: 22px; margin-top: 0; }
+  .report .body h2 { font-size: 18px; }
+  .report .body h3 { font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 6px; }
+  .report .body strong { color: #fff; font-weight: 600; }
+  .report .body em { font-style: italic; }
+  .report .body code {
+    font-family: var(--mono); font-size: 13px;
+    background: rgba(255,255,255,0.08);
+    padding: 1px 6px; border-radius: 2px;
+    color: #fff;
+  }
+  .report .body ul, .report .body ol { padding-left: 22px; margin: 8px 0; }
+  .report .body li { margin: 4px 0; }
+
+  /* inline verdict chips inside the report text */
+  .verdict {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 8px; border-radius: 3px;
+    font-family: var(--sans); font-size: 11.5px; font-weight: 600;
+    letter-spacing: 0.3px; line-height: 1.4;
+    vertical-align: baseline;
+    border: 1px solid transparent;
+  }
+  .verdict.impossible { background: var(--flagBg); color: var(--flag); border-color: color-mix(in oklch, var(--flag) 20%, transparent); }
+  .verdict.implausible, .verdict.could_not_verify { background: var(--warnBg); color: var(--warn); border-color: color-mix(in oklch, var(--warn) 20%, transparent); }
+  .verdict.possible { background: var(--okBg); color: var(--ok); border-color: color-mix(in oklch, var(--ok) 20%, transparent); }
+
+  /* ─── Footer ─── */
+  footer {
+    padding: 14px 28px; background: var(--bg2);
+    border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: 11px; color: var(--ink4);
+    display: flex; gap: 16px; align-items: center;
+  }
+  footer .sep { color: var(--line); }
+
+  /* placeholder log empty state */
+  .empty {
+    padding: 28px 0; text-align: center;
+    font-size: 13px; color: var(--ink4); font-style: italic;
+    border: 1px dashed var(--line);
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>SF Childcare Investigator</h1>
-  <span class="tag">powered by Hermai · inspired by Surelock-Homes</span>
-</header>
-<main>
-  <aside>
-    <label>Prompt</label>
-    <textarea id="prompt" placeholder="e.g. Investigate SF facilities with capacity >= 80 for physical impossibility">Sweep the 3 largest licensed child care facilities in San Francisco and check each for physical impossibility under Title 22.</textarea>
-    <label>Max turns</label>
-    <input id="maxTurns" type="number" value="12" min="3" max="30" />
-    <button id="run">Investigate</button>
-  </aside>
-  <section class="work">
-    <div class="kpi">
-      <div>Status: <strong id="status">idle</strong></div>
-      <div>Turns: <strong id="turns">–</strong></div>
-      <div>Tool calls: <strong id="toolCount">0</strong></div>
+
+<div class="appbar">
+  <div class="wordmark">
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <rect x="1" y="1" width="20" height="20" rx="2" fill="none" stroke="#fff" stroke-width="1.2"/>
+      <rect x="5" y="12" width="4" height="5" fill="#fff"/>
+      <rect x="10" y="7" width="4" height="10" fill="#fff"/>
+      <rect x="15" y="10" width="2" height="7" fill="#fff"/>
+    </svg>
+    <div>
+      <div class="name">CCLD Investigator</div>
+      <div class="meta">San Francisco · v0.1</div>
     </div>
-    <div class="log" id="log">live tool-call log will appear here…</div>
-    <div class="report" id="report" style="display:none"></div>
+  </div>
+  <nav>
+    <button class="navbtn active" data-view="new">New investigation</button>
+    <button class="navbtn" data-view="sources">Data sources</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="sess" id="sessMeta">7 data sources · model: claude-sonnet-4.5</div>
+  <div class="sfbadge">SF</div>
+</div>
+
+<div class="breadcrumb">
+  <span>← Investigations</span>
+  <span>/</span>
+  <span class="cur">New</span>
+</div>
+
+<main>
+  <aside class="form">
+    <div class="eyebrow">Step 01 · Target</div>
+    <h1 class="pagetitle">Open a new investigation</h1>
+    <p class="lede">
+      The agent plans its own tool calls — CCLD roster, Assessor parcel, DBI permits,
+      business registration, housing inspections, 311 complaints, evictions.
+    </p>
+
+    <div class="field">
+      <div class="label">
+        <span class="name">Prompt</span>
+        <span class="hint">Free-form</span>
+      </div>
+      <textarea id="prompt" spellcheck="false">Sweep the 3 largest licensed child care facilities in San Francisco and check each for physical impossibility under CA Title 22.</textarea>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <div class="label"><span class="name">Max turns</span><span class="hint">1–30</span></div>
+        <input class="inp" id="maxTurns" type="number" value="12" min="1" max="30" />
+      </div>
+      <div class="field">
+        <div class="label"><span class="name">Model</span><span class="hint">OpenRouter</span></div>
+        <input class="inp" id="model" type="text" value="anthropic/claude-sonnet-4.5" />
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top: 8px;">
+      <button class="btn btn-primary" id="run">
+        Start investigation
+        <span class="kbd">⏎</span>
+      </button>
+      <button class="btn btn-ghost" id="clear" type="button">Clear</button>
+    </div>
+
+    <div class="meta-line">Est. 3–8s · ~6–10 tool calls</div>
+  </aside>
+
+  <section class="work">
+    <div class="statusStrip">
+      <div class="mini"><div class="k">Turns</div><div class="v" id="mTurns">—</div></div>
+      <div class="mini"><div class="k">Tool calls</div><div class="v" id="mTools">0</div></div>
+      <div class="mini"><div class="k">Wall time</div><div class="v" id="mTime">—</div></div>
+      <div class="mini"><div class="k">Events</div><div class="v" id="mEvents">0</div></div>
+      <div class="pill idle" id="pill">
+        <span class="dot"></span>
+        <span id="pillLabel">Idle</span>
+      </div>
+    </div>
+
+    <div class="sectionhead">
+      <div class="t">Event stream</div>
+      <div class="r" id="streamMeta">waiting to start</div>
+    </div>
+    <div class="stream" id="stream">
+      <div class="empty">Live tool-calling transcript will appear here as the agent runs.</div>
+    </div>
+
+    <div id="reportWrap" style="display:none">
+      <div class="sectionhead">
+        <div class="t">Final report</div>
+        <div class="r">markdown</div>
+      </div>
+      <div class="report">
+        <div class="hdr" id="reportHdr">Report · markdown</div>
+        <div class="body" id="report"></div>
+      </div>
+    </div>
   </section>
 </main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div>
+      <div class="eyebrow">Registry · read-only</div>
+      <h2>Data sources</h2>
+    </div>
+    <button class="close" id="drawerClose" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="src">
+      <div class="top">
+        <span class="num">01</span>
+        <span class="name">CCLD licensed facilities roster</span>
+        <span class="via">ArcGIS · direct</span>
+      </div>
+      <div class="endpoint">services.arcgis.com/XLPEppdz2H9dOiqp/arcgis/rest/services/CDSS_CCL_Facilities</div>
+      <div class="desc">California Community Care Licensing — authoritative for facility name, licensee, address, licensed capacity, program type, status. Scoped to SF county, CHILD CARE program.</div>
+    </div>
+    <div class="src">
+      <div class="top">
+        <span class="num">02</span>
+        <span class="name">SF Assessor parcel roll</span>
+        <a class="via hermai" href="https://hermai.ai" target="_blank" rel="noopener">Hermai.ai</a>
+      </div>
+      <div class="endpoint">data.sfgov.org/resource/wv5m-vpq2.json</div>
+      <div class="desc">Secured property tax roll (closed-roll 2016). `property_area` is building sqft — the ground truth for Title 22 math. Resolved via canonical permits → block/lot join.</div>
+    </div>
+    <div class="src">
+      <div class="top">
+        <span class="num">03</span>
+        <span class="name">DBI building permits</span>
+        <a class="via hermai" href="https://hermai.ai" target="_blank" rel="noopener">Hermai.ai</a>
+      </div>
+      <div class="endpoint">data.sfgov.org/resource/i98e-djp9.json</div>
+      <div class="desc">Every permit filed at the address. Reveals use changes (`existing_use` → `proposed_use`) and also serves as the address → block/lot lookup.</div>
+    </div>
+    <div class="src">
+      <div class="top">
+        <span class="num">04</span>
+        <span class="name">Registered business locations</span>
+        <a class="via hermai" href="https://hermai.ai" target="_blank" rel="noopener">Hermai.ai</a>
+      </div>
+      <div class="endpoint">data.sfgov.org/resource/g8m3-pdis.json</div>
+      <div class="desc">SF Treasurer registry. Confirms the licensee is actually registered and surfaces NAICS category, dates, ownership.</div>
+    </div>
+    <div class="src">
+      <div class="top">
+        <span class="num">05</span>
+        <span class="name">DBI housing inspections</span>
+        <a class="via hermai" href="https://hermai.ai" target="_blank" rel="noopener">Hermai.ai</a>
+      </div>
+      <div class="endpoint">data.sfgov.org/resource/nbtm-fbw5.json</div>
+      <div class="desc">Housing code complaints and Notices of Violation. Active NOVs at a licensed-facility address are a direct safety signal.</div>
+    </div>
+    <div class="src">
+      <div class="top">
+        <span class="num">06</span>
+        <span class="name">311 service requests</span>
+        <a class="via hermai" href="https://hermai.ai" target="_blank" rel="noopener">Hermai.ai</a>
+      </div>
+      <div class="endpoint">data.sfgov.org/resource/vw6y-z8j6.json</div>
+      <div class="desc">Neighborhood complaints at the address — noise, illegal use, obstruction, building-without-permit.</div>
+    </div>
+    <div class="src">
+      <div class="top">
+        <span class="num">07</span>
+        <span class="name">Eviction notices</span>
+        <a class="via hermai" href="https://hermai.ai" target="_blank" rel="noopener">Hermai.ai</a>
+      </div>
+      <div class="endpoint">data.sfgov.org/resource/5cei-gny5.json</div>
+      <div class="desc">Filed eviction notices per address — tenant-churn context when a facility expands into a mixed-use building.</div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    Schemas pulled from <strong>data.sfgov.org</strong> via the <a href="https://hermai.ai" target="_blank" rel="noopener">Hermai.ai</a> registry.
+    Query recipes documented in the schema package.
+  </div>
+</aside>
+
+<footer>
+  <div>Streamed via <code>/api/investigate/stream</code> (SSE)</div>
+  <div class="spacer" style="flex:1"></div>
+  <div>Powered by <a href="https://hermai.ai" target="_blank" rel="noopener">Hermai.ai</a></div>
+  <span class="sep">·</span>
+  <div>Inspired by Surelock-Homes</div>
+</footer>
+
 <script>
   const $ = (id) => document.getElementById(id);
-  const log = (line, cls="") => {
-    const el = $("log");
-    const span = document.createElement("span");
-    if (cls) span.className = cls;
-    span.textContent = line + "\n";
-    el.appendChild(span);
-    el.scrollTop = el.scrollHeight;
-  };
-  const setKpi = (turns, tc) => { $("turns").textContent = turns; $("toolCount").textContent = tc; };
+  const stream = $("stream");
+  const pill = $("pill");
+  const pillLabel = $("pillLabel");
 
-  async function renderMarkdown(text) {
-    // minimal md: bold headings, keep newlines, backticks
-    const esc = (s) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    return esc(text)
-      .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-      .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-      .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      .replace(/\n/g, "<br/>");
-  }
+  let startAt = 0, toolCount = 0, evCount = 0, emptied = false, wallTimer = null;
+
+  const setPill = (cls, label) => {
+    pill.className = "pill " + cls;
+    pillLabel.textContent = label;
+  };
+  const emptyOnce = () => {
+    if (!emptied) { stream.innerHTML = ""; emptied = true; }
+  };
+  const fmtTime = (ms) => `+${(ms / 1000).toFixed(2)}s`;
+
+  const pushEvent = (node) => {
+    emptyOnce();
+    stream.appendChild(node);
+    evCount += 1;
+    $("mEvents").textContent = evCount;
+    node.scrollIntoView({ block: "end", behavior: "smooth" });
+  };
+
+  const summarise = (ev) => {
+    const r = ev.result || {};
+    if (r.error) return { text: `ERROR ${r.error}`, flag: false, err: true };
+    if (r.verdict) {
+      const flag = r.verdict === "impossible" || r.verdict === "implausible";
+      return { text: `verdict=${r.verdict}`, flag, err: false };
+    }
+    if (r.count !== undefined) return { text: `count=${r.count}`, flag: false, err: false };
+    if (r.found === false) return { text: `not found`, flag: false, err: false };
+    if (r.block) return { text: `block=${r.block}/${r.lot}`, flag: false, err: false };
+    return { text: "ok", flag: false, err: false };
+  };
+
+  const renderEvent = (ev) => {
+    const t = ev.ts != null ? ev.ts : (Date.now() - startAt);
+    const time = fmtTime(t);
+
+    if (ev.type === "assistant_text") {
+      if (!ev.text || !ev.text.trim()) return;
+      const d = document.createElement("div");
+      d.className = "ev assistant";
+      d.innerHTML =
+        `<div class="hdr">${time} · Assistant</div>` +
+        `<div>${escapeHtml(ev.text.trim())}</div>`;
+      pushEvent(d);
+      return;
+    }
+    if (ev.type === "tool_call") {
+      toolCount += 1;
+      $("mTools").textContent = toolCount;
+      const d = document.createElement("div");
+      d.className = "ev tool_call";
+      d.innerHTML =
+        `<span class="t">${time}</span>` +
+        `<span class="arrow">→</span>` +
+        `<span class="name">${escapeHtml(ev.name)}</span>` +
+        `<span class="args">(${escapeHtml(shortArgs(ev.arguments))})</span>`;
+      pushEvent(d);
+      return;
+    }
+    if (ev.type === "tool_result") {
+      const s = summarise(ev);
+      const d = document.createElement("div");
+      d.className = "ev tool_result" + (s.flag ? " flag" : "") + (s.err ? " err" : "");
+      d.innerHTML =
+        `<span class="t">${time}</span>` +
+        `<span class="arrow">←</span>` +
+        `<span class="name">${escapeHtml(ev.name)}</span>` +
+        `<span class="summary">${escapeHtml(s.text)}</span>` +
+        `<span class="ms">${ev.elapsed_ms != null ? ev.elapsed_ms + "ms" : ""}</span>`;
+      pushEvent(d);
+      return;
+    }
+    if (ev.type === "error") {
+      const d = document.createElement("div");
+      d.className = "ev error";
+      d.textContent = `[error] ${ev.error}`;
+      pushEvent(d);
+    }
+  };
+
+  const escapeHtml = (s) =>
+    String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+  const shortArgs = (a) => {
+    try {
+      const pairs = Object.entries(a || {}).map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`);
+      return pairs.join(", ");
+    } catch { return ""; }
+  };
+
+  const renderMarkdown = (src) => {
+    const esc = escapeHtml;
+    let html = esc(src);
+    // headings
+    html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+    html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+    html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+    // bold/italic
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+    // inline code
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+    // verdict chips for our own verdict tokens
+    html = html.replace(/\b(impossible|implausible|could_not_verify|possible)\b/g, (m) =>
+      `<span class="verdict ${m}">${m}</span>`);
+    // simple lists
+    html = html.replace(/^(?:- .+(?:\n|$))+/gm, (block) =>
+      "<ul>" + block.trim().split(/\n/).map((l) => `<li>${l.replace(/^- /, "")}</li>`).join("") + "</ul>");
+    // paragraphs
+    html = html.split(/\n{2,}/).map((p) => {
+      if (/^<(h\d|ul|ol|pre|blockquote)/.test(p.trim())) return p;
+      return `<p>${p.replace(/\n/g, "<br>")}</p>`;
+    }).join("\n");
+    return html;
+  };
+
+  const resetUI = () => {
+    stream.innerHTML = `<div class="empty">Live tool-calling transcript will appear here as the agent runs.</div>`;
+    emptied = false;
+    toolCount = 0; evCount = 0;
+    $("mTools").textContent = "0";
+    $("mEvents").textContent = "0";
+    $("mTurns").textContent = "—";
+    $("mTime").textContent = "—";
+    $("reportWrap").style.display = "none";
+    $("report").innerHTML = "";
+    setPill("idle", "Idle");
+  };
+
+  $("clear").addEventListener("click", resetUI);
+
+  // Data-sources drawer
+  const openDrawer = () => {
+    document.body.classList.add("drawer-open");
+    $("drawer").setAttribute("aria-hidden", "false");
+  };
+  const closeDrawer = () => {
+    document.body.classList.remove("drawer-open");
+    $("drawer").setAttribute("aria-hidden", "true");
+  };
+  document.querySelectorAll(".navbtn").forEach((b) => {
+    b.addEventListener("click", () => {
+      const view = b.dataset.view;
+      if (view === "sources") openDrawer();
+      else closeDrawer();
+    });
+  });
+  $("drawerClose").addEventListener("click", closeDrawer);
+  $("scrim").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && document.body.classList.contains("drawer-open")) closeDrawer();
+  });
 
   $("run").addEventListener("click", async () => {
     const prompt = $("prompt").value.trim();
     if (!prompt) return;
-    $("run").disabled = true; $("status").textContent = "running";
-    $("log").textContent = ""; $("report").style.display = "none";
-    let tc = 0;
+    $("run").disabled = true;
+    resetUI();
+    setPill("running", "Running");
+    $("streamMeta").textContent = "streaming…";
+    startAt = Date.now();
+    wallTimer = setInterval(() => {
+      $("mTime").textContent = ((Date.now() - startAt) / 1000).toFixed(1) + "s";
+    }, 100);
 
-    const resp = await fetch("/api/investigate/stream", {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({prompt, max_turns: parseInt($("maxTurns").value, 10)}),
-    });
-    const reader = resp.body.getReader();
-    const dec = new TextDecoder();
-    let buf = "";
-
-    while (true) {
-      const {value, done} = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, {stream: true});
-      const parts = buf.split("\n\n");
-      buf = parts.pop();
-      for (const p of parts) {
-        if (!p.startsWith("data: ")) continue;
-        let ev; try { ev = JSON.parse(p.slice(6)); } catch { continue; }
-        if (ev.type === "tool_call") {
-          tc++; setKpi("–", tc);
-          log(`→ ${ev.name}(${JSON.stringify(ev.arguments)})`, "call");
-        } else if (ev.type === "tool_result") {
-          const summary = ev.result?.count !== undefined ? `count=${ev.result.count}` : (ev.result?.error ? `ERROR ${ev.result.error}` : "ok");
-          log(`← ${ev.name} ${summary} (${ev.elapsed_ms}ms)`, ev.result?.error ? "err" : "result");
-        } else if (ev.type === "assistant_text") {
-          if (ev.text.trim()) log(`[assistant] ${ev.text.slice(0, 280)}${ev.text.length>280?"…":""}`);
-        } else if (ev.type === "final") {
-          $("report").innerHTML = await renderMarkdown(ev.report);
-          $("report").style.display = "block";
-        } else if (ev.type === "error") {
-          log(`[error] ${ev.error}`, "err");
+    let finalReport = "";
+    try {
+      const resp = await fetch("/api/investigate/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          max_turns: parseInt($("maxTurns").value, 10),
+          model: $("model").value.trim() || null,
+        }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop();
+        for (const p of parts) {
+          if (!p.startsWith("data: ")) continue;
+          let ev;
+          try { ev = JSON.parse(p.slice(6)); } catch { continue; }
+          ev.ts = Date.now() - startAt;
+          if (ev.type === "final") {
+            finalReport = ev.report || "";
+          } else {
+            renderEvent(ev);
+          }
         }
       }
+      setPill("done", "Complete");
+      $("streamMeta").textContent = `${evCount} events · ${((Date.now() - startAt) / 1000).toFixed(1)}s`;
+      if (finalReport) {
+        $("reportWrap").style.display = "block";
+        $("reportHdr").textContent = `Report · ${toolCount} tool calls · ${((Date.now() - startAt) / 1000).toFixed(1)}s wall-clock`;
+        $("report").innerHTML = renderMarkdown(finalReport);
+      }
+    } catch (e) {
+      renderEvent({ type: "error", error: e.message || String(e) });
+      setPill("errored", "Error");
+    } finally {
+      clearInterval(wallTimer);
+      $("run").disabled = false;
     }
-    $("status").textContent = "done"; $("run").disabled = false;
   });
 </script>
 </body>
