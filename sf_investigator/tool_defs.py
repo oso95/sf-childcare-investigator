@@ -12,7 +12,6 @@ from .tools import (
     permits_lookup,
     physical_impossibility_check,
     resolve_block_lot,
-    risk_scorecard,
     satellite_image,
     street_view_image,
 )
@@ -31,7 +30,6 @@ TOOL_IMPL = {
     "outdoor_space_check": outdoor_space_check,
     "street_view_image": street_view_image,
     "satellite_image": satellite_image,
-    "risk_scorecard": risk_scorecard,
 }
 
 TOOL_DEFS = [
@@ -274,46 +272,6 @@ TOOL_DEFS = [
                     "zoom": {"type": "integer", "default": 19},
                 },
                 "required": ["address"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "risk_scorecard",
-            "description": (
-                "Weighted risk scorecard. Primary signal (must fire for HIGH): indoor "
-                "sqft fails — `indoor_impossible` (+3) or `indoor_implausible` (+2). "
-                "Supporting: outdoor_fails (+1), no_change_of_use (+1), active_code_problem "
-                "(+2), residential_parcel (+1). HIGH = primary fires AND total ≥ 5. "
-                "FCCH → EXCLUDED. Tax-exempt or condo parcel → INSUFFICIENT_DATA (sqft "
-                "likely under-reported). Returns points, signals (with weights), tweet "
-                "draft, and CCLD complaint URL. Publication requires HIGH + human review."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "facility_name": {"type": "string"},
-                    "address": {"type": "string"},
-                    "capacity": {"type": "integer"},
-                    "facility_type": {"type": "integer",
-                                      "description": "CCLD TYPE code (830/840/850/860 = center; 200/202/204 = FCCH)"},
-                    "indoor_verdict": {"type": "string",
-                                       "enum": ["impossible", "implausible", "possible", "could_not_verify"]},
-                    "outdoor_verdict": {"type": "string",
-                                        "enum": ["outdoor_insufficient", "outdoor_sufficient", "could_not_verify"]},
-                    "change_of_use_found": {"type": "boolean"},
-                    "has_open_nov_or_311": {"type": "boolean"},
-                    "parcel_use_definition": {"type": "string"},
-                    "parcel_is_condo": {"type": "boolean", "default": False},
-                    "parcel_is_exempt": {"type": "boolean", "default": False,
-                                         "description": "True when parcel building_sqft=0 (common for tax-exempt YMCA/SFUSD/religious)"},
-                    "indoor_deficit_sqft": {"type": "number",
-                                            "description": "From physical_impossibility_check.deficit_sqft — how many sqft short the building is"},
-                },
-                "required": ["facility_name", "address", "capacity",
-                             "indoor_verdict", "outdoor_verdict",
-                             "change_of_use_found", "has_open_nov_or_311"],
             },
         },
     },

@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterable
 
 from openai import OpenAI
 
-from .prompt import SYSTEM_PROMPT
+from .prompt import build_system_prompt
 from .tool_defs import TOOL_DEFS, TOOL_IMPL
 
 
@@ -57,7 +57,7 @@ def run_investigation(
     client = _client()
 
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": build_system_prompt()},
         {"role": "user", "content": user_prompt},
     ]
     tool_calls_log: list[dict[str, Any]] = []
